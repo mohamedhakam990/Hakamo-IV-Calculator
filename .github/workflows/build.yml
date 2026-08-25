@@ -1,4 +1,4 @@
-name: Build Hakamo Nursing Assistant V4
+name: Build Hakamo Nursing Assistant V5
 
 on:
   workflow_dispatch:
@@ -14,14 +14,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Find and extract V4 project
+      - name: Find V5 project
         run: |
           set -e
 
-          ZIP="HakamoNursingAssistant-V4-FIXED.zip"
+          ZIP="HakamoNursingAssistant-V5-Contact-Links.zip"
 
           if [ ! -f "$ZIP" ]; then
-            ZIP=$(find . -maxdepth 1 -type f -name 'HakamoNursingAssistant-V4-*.zip' | head -n 1)
+            echo "V5 ZIP not found!"
+            find . -maxdepth 1 -type f -name "*.zip" -print
+            exit 1
           fi
 
           echo "Using: $ZIP"
@@ -31,7 +33,7 @@ jobs:
 
           mv extracted/HakamoIVCalculator project
 
-      - name: Enable AndroidX
+      - name: Configure AndroidX
         working-directory: project
         run: |
           cat > gradle.properties <<'EOF'
@@ -40,9 +42,6 @@ jobs:
           android.enableJetifier=true
           kotlin.code.style=official
           EOF
-
-          echo "===== gradle.properties ====="
-          cat gradle.properties
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -55,18 +54,16 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Check AndroidX
+      - name: Clean project
         working-directory: project
-        run: |
-          grep -E 'android.useAndroidX|android.enableJetifier' gradle.properties
+        run: gradle clean --no-daemon
 
-      - name: Build APK
+      - name: Build V5 APK
         working-directory: project
-        run: |
-          gradle clean assembleDebug --no-daemon --stacktrace
+        run: gradle assembleDebug --no-daemon --stacktrace
 
-      - name: Upload APK
+      - name: Upload V5 APK
         uses: actions/upload-artifact@v4
         with:
-          name: Hakamo-Nursing-Assistant-V4-APK
+          name: Hakamo-Nursing-Assistant-V5
           path: project/app/build/outputs/apk/debug/app-debug.apk
