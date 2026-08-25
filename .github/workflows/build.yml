@@ -29,6 +29,11 @@ jobs:
         with:
           gradle-version: '8.7'
 
+      - name: Fix JVM targets
+        working-directory: project
+        run: |
+          printf '\nandroid {\n    compileOptions {\n        sourceCompatibility JavaVersion.VERSION_17\n        targetCompatibility JavaVersion.VERSION_17\n    }\n}\n\nkotlin {\n    jvmToolchain(17)\n}\n' >> app/build.gradle.kts
+
       - name: Build APK
         working-directory: project
         run: gradle assembleDebug --no-daemon
