@@ -1,4 +1,4 @@
-name: Build Hakamo IV Calculator Pro
+name: Build Hakamo Nursing Assistant V4
 
 on:
   workflow_dispatch:
@@ -13,9 +13,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract Pro project
+      - name: Extract V4 project
         run: |
-          unzip -q HakamoIVCalculator-Pro-v2.zip -d extracted
+          unzip -q HakamoNursingAssistant-V4-Bilingual.zip -d extracted
           mv extracted/HakamoIVCalculator project
 
       - name: Set up Java 17
@@ -29,12 +29,12 @@ jobs:
         with:
           gradle-version: "8.7"
 
-      - name: Build Pro APK
+      - name: Build V4 APK
         working-directory: project
         run: gradle assembleDebug --no-daemon
 
-      - name: Upload Pro APK
+      - name: Upload V4 APK
         uses: actions/upload-artifact@v4
         with:
-          name: Hakamo-IV-Calculator-Pro
+          name: Hakamo-Nursing-Assistant-V4
           path: project/app/build/outputs/apk/debug/app-debug.apk
