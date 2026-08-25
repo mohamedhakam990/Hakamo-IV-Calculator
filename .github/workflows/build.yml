@@ -29,10 +29,37 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Fix JVM targets
+      - name: Fix Gradle configuration
         working-directory: project
         run: |
-          printf '\nandroid {\n    compileOptions {\n        sourceCompatibility JavaVersion.VERSION_17\n        targetCompatibility JavaVersion.VERSION_17\n    }\n}\n\nkotlin {\n    jvmToolchain(17)\n}\n' >> app/build.gradle.kts
+          cat > app/build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
+
+          android {
+              namespace = "com.hakamo.ivcalculator"
+              compileSdk = 35
+
+              defaultConfig {
+                  applicationId = "com.hakamo.ivcalculator"
+                  minSdk = 23
+                  targetSdk = 35
+                  versionCode = 1
+                  versionName = "1.0"
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+          }
+
+          kotlin {
+              jvmToolchain(17)
+          }
+          EOF
 
       - name: Build APK
         working-directory: project
