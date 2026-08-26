@@ -1,4 +1,4 @@
-name: Build Hakamo Nursing Assistant V6.2
+name: Build Hakamo Nursing Assistant V8
 
 on:
   workflow_dispatch:
@@ -15,21 +15,20 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Find V6.2 ZIP
+      - name: Find V8 ZIP
         run: |
           set -e
 
-          ZIP="HakamoNursingAssistant-V6.2-Arabic-All-Ranges.zip"
+          ZIP="HakamoNursingAssistant-V8-Nursing-Guide.zip"
 
           if [ ! -f "$ZIP" ]; then
-            echo "ERROR: V6.2 ZIP not found!"
-            echo ""
-            echo "ZIP files موجودة:"
+            echo "ERROR: V8 ZIP not found!"
+            echo "Available ZIP files:"
             find . -maxdepth 1 -type f -name "*.zip" -print
             exit 1
           fi
 
-          echo "Using ZIP:"
+          echo "Using:"
           echo "$ZIP"
 
       - name: Extract Android Project
@@ -39,7 +38,7 @@ jobs:
           rm -rf extracted project
           mkdir extracted
 
-          unzip -q "HakamoNursingAssistant-V6.2-Arabic-All-Ranges.zip" -d extracted
+          unzip -q "HakamoNursingAssistant-V8-Nursing-Guide.zip" -d extracted
 
           echo "Extracted files:"
           find extracted -maxdepth 3 -type f | head -100
@@ -47,10 +46,14 @@ jobs:
           if [ -d "extracted/HakamoIVCalculator" ]; then
             mv extracted/HakamoIVCalculator project
           else
-            PROJECT_DIR=$(find extracted -name "settings.gradle.kts" -o -name "settings.gradle" | head -1 | xargs -r dirname)
+            PROJECT_DIR=$(find extracted \
+              -name "settings.gradle.kts" \
+              -o -name "settings.gradle" \
+              | head -1 \
+              | xargs -r dirname)
 
             if [ -z "$PROJECT_DIR" ]; then
-              echo "ERROR: Android project not found inside ZIP!"
+              echo "ERROR: Android project not found!"
               exit 1
             fi
 
@@ -99,7 +102,7 @@ jobs:
         run: |
           gradle clean --no-daemon
 
-      - name: Build Debug APK
+      - name: Build V8 APK
         working-directory: project
         run: |
           gradle assembleDebug \
@@ -116,9 +119,9 @@ jobs:
 
           ls -lh project/app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Upload APK
+      - name: Upload V8 APK
         uses: actions/upload-artifact@v4
         with:
-          name: Hakamo-Nursing-Assistant-V6.2
+          name: Hakamo-Nursing-Assistant-V8
           path: project/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
