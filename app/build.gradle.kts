@@ -11,8 +11,8 @@ android {
         applicationId = "com.hakamo.ivcalculator"
         minSdk = 23
         targetSdk = 35
-        versionCode = 10
-        versionName = "6.2"
+        versionCode = 11
+        versionName = "6.2.1"
     }
 
     compileOptions {
@@ -27,4 +27,6 @@ android {
 
 dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+    implementation("com.google.zxing:core:3.5.3")
 }

@@ -184,61 +184,77 @@ override fun onBackPressed(){
   Drug("Simvastatin","سيمفاستاتين","Statin\nستاتين","خفض الكوليسترول وتقليل مخاطر قلبية حسب الخطة.","تداخلات دوائية متعددة؛ أبلغ عن ألم عضلي شديد.","ألم عضلي، اضطراب هضمي، ارتفاع إنزيمات الكبد.") ,
 )
 
+ private data class MarketDrug(val en:String,val ar:String,val scientific:String,val manufacturer:String,val route:String,val category:String,val price:Double?)
+ private var marketDrugs:List<MarketDrug> = emptyList()
+ private var marketLoaded=false
+ private val marketUrl="https://raw.githubusercontent.com/karem505/egyptian-drug-database/main/data/egyptian-drugs.json"
+
  private fun medicines(){page="medicines";parentPage="home";
-  clear("💊 دليل الأدوية","معلومات تعليمية مختصرة — بدون جرعات علاجية")
-  val search=inp("ابحث باسم الدواء أو المادة الفعالة")
-  add(search)
-  val cat=Spinner(this)
-  val cats=arrayOf("كل الأدوية","مسكنات وخافضات حرارة","مضادات حيوية","طوارئ","قلب وضغط","مضادات تخثر","جهاز هضمي","جهاز تنفسي","غدد وسكري","جهاز عصبي","سوائل وإلكتروليتات","أخرى")
-  cat.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,cats)
-  body.addView(cat,LinearLayout.LayoutParams(-1,dp(52)).apply{bottomMargin=dp(10)})
+  clear("💊 دليل أدوية السوق المصري","قاعدة بيانات موسعة • الاسم التجاري • المادة الفعالة • الشركة • السعر");
+  val status=tv("جاري تجهيز قاعدة الأدوية…",12f,muted()); body.addView(status,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(8)})
+  val search=inp("ابحث باسم الدواء أو المادة الفعالة أو الشركة"); add(search)
+  val actions=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
+  val refreshBtn=btn("↻ تحديث قاعدة الأدوية") { loadMarketDrugs(status,search) }
+  actions.addView(refreshBtn,LinearLayout.LayoutParams(0,dp(52),1f).apply{rightMargin=dp(6)})
+  val liveBtn=btn("🌐 تحقق من الأسعار") { try{startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://www.dawaagate.com/medicines")))}catch(_:Exception){toast("تعذر فتح المصدر")} }
+  actions.addView(liveBtn,LinearLayout.LayoutParams(0,dp(52),1f).apply{leftMargin=dp(6)})
+  body.addView(actions)
   val list=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}; body.addView(list)
-  fun refresh(){
-    list.removeAllViews()
-    val q=search.text.toString().trim().lowercase(java.util.Locale.ROOT)
-    val pos=cat.selectedItemPosition
-    drugs.forEach{d->
-      val text=(d.generic+" "+d.ar+" "+d.category+" "+d.uses).lowercase(java.util.Locale.ROOT)
-      val categoryOk=when(pos){
-        0->true
-        1->d.category.contains("Pain",true)||d.category.contains("NSAID",true)||d.category.contains("Antiplatelet",true)
-        2->d.category.contains("Antibiotic",true)||d.category.contains("Cephalosporin",true)||d.category.contains("Antimicrobial",true)
-        3->d.category.contains("Emergency",true)
-        4->d.category.contains("Cardio",true)||d.category.contains("Nitrate",true)||d.category.contains("Beta Blocker",true)||d.category.contains("Statin",true)||d.generic.contains("Amlodipine")
-        5->d.category.contains("Anticoagulant",true)
-        6->d.category.contains("PPI",true)
-        7->d.category.contains("Bronchodilator",true)
-        8->d.category.contains("Antidiabetic",true)||d.generic.contains("Insulin",true)||d.generic.contains("Hydrocortisone",true)||d.generic.contains("Dexamethasone",true)
-        9->d.category.contains("Opioid",true)||d.category.contains("Benzodiazepine",true)
-        10->d.category.contains("IV Fluid",true)||d.category.contains("Electrolyte",true)
-        else->true
-      }
-      if(categoryOk && (q.isEmpty()||text.contains(q))){
-        val c=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(15),dp(14),dp(15),dp(14));background=glass();setOnClickListener{drugDetail(d)}}
-        c.addView(tv(d.ar,18f,fg(),true)); c.addView(tv(d.generic,13f,accent,true)); c.addView(tv("اضغط لعرض الشرح الكامل",10f,muted()))
-        list.addView(c,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(9)})
+  fun render(){
+    list.removeAllViews(); val q=search.text.toString().trim().lowercase(java.util.Locale.ROOT)
+    val data=if(marketDrugs.isNotEmpty()) marketDrugs else drugs.map{MarketDrug(it.generic,it.ar,it.generic,"—",it.category,it.category,null)}
+    var shown=0
+    data.forEach{d->
+      val text=(d.en+" "+d.ar+" "+d.scientific+" "+d.manufacturer+" "+d.category).lowercase(java.util.Locale.ROOT)
+      if(q.isEmpty()||text.contains(q)){
+        shown++
+        val c=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(15),dp(13),dp(15),dp(13));background=glass();setOnClickListener{marketDrugDetail(d)}}
+        c.addView(tv(if(d.ar.isBlank()) d.en else d.ar,17f,fg(),true));
+        c.addView(tv(d.en,12f,accent,true));
+        c.addView(tv(if(d.scientific.isBlank())"المادة الفعالة: غير متاحة" else "المادة الفعالة: ${d.scientific}",11f,muted()));
+        val price=if(d.price!=null) "${fmt(d.price!!)} جنيه" else "السعر غير متاح";
+        c.addView(tv("💰 $price   •   ${d.manufacturer.ifBlank{"الشركة غير متاحة"}}",12f,fg(),true));
+        list.addView(c,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(8)})
+        if(shown>=120) return@forEach
       }
     }
-    if(list.childCount==0) list.addView(tv("لا توجد نتيجة",14f,muted()).apply{setPadding(dp(12),dp(20),dp(12),dp(20))})
+    if(shown==0) list.addView(tv("لا توجد نتائج مطابقة.",14f,muted()).apply{setPadding(dp(12),dp(20),dp(12),dp(20))})
+    status.text=if(marketLoaded) "تم تحميل ${marketDrugs.size} صنفًا • البيانات المفتوحة آخر تحديث معلن: يونيو 2026" else "وضع احتياطي: ${drugs.size} دواء تعليمي مدمج"
   }
-  search.addTextChangedListener(object:android.text.TextWatcher{override fun beforeTextChanged(s:CharSequence?,st:Int,c:Int,a:Int){};override fun onTextChanged(s:CharSequence?,b:Int,c:Int,a:Int){refresh()};override fun afterTextChanged(e:android.text.Editable?){} })
-  cat.onItemSelectedListener=object:AdapterView.OnItemSelectedListener{override fun onNothingSelected(p:AdapterView<*>?){ };override fun onItemSelected(p:AdapterView<*>?,v:android.view.View?,pos:Int,id:Long){refresh()} }
-  refresh()
+  search.addTextChangedListener(object:android.text.TextWatcher{override fun beforeTextChanged(s:CharSequence?,st:Int,c:Int,a:Int){};override fun onTextChanged(s:CharSequence?,b:Int,c:Int,a:Int){render()};override fun afterTextChanged(e:android.text.Editable?){} })
+  render()
+  if(!marketLoaded) loadMarketDrugs(status,search)
  }
 
- private fun drugDetail(d:Drug){page="drugDetail";parentPage="medicines";
-  clear("💊 ${d.ar}","${d.generic} • ${d.category}")
-  fun section(title:String,text:String){
-   val c=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(15),dp(13),dp(15),dp(13));background=glass()}
-   c.addView(tv(title,14f,accent,true));c.addView(tv(text,14f,fg()))
-   body.addView(c,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(10)})
-  }
-  section("دواعي الاستعمال",d.uses)
-  section("التحذيرات والاحتياطات",d.warnings)
-  section("الآثار الجانبية الشائعة",d.effects)
-  section("ملاحظة تمريضية","تحقق من اسم الدواء، المادة الفعالة، التركيز، الطريق، الحساسية، التداخلات، ووصفة الطبيب/بروتوكول المنشأة قبل الإعطاء. هذه البطاقة لا تعرض جرعة علاجية.")
-  section("مصدر المعلومات","تم تصميم قسم الأدوية ليكون مرجعًا تعليميًا مختصرًا، ويجب الرجوع للنشرة الرسمية ومصادر الأدوية الموثوقة للحصول على أحدث التفاصيل.")
+ private fun loadMarketDrugs(status:TextView,search:EditText){
+  status.text="جاري تحديث قاعدة الأدوية من الإنترنت…"
+  Thread{
+   try{
+    val conn=(java.net.URL(marketUrl).openConnection() as java.net.HttpURLConnection).apply{connectTimeout=15000;readTimeout=30000;requestMethod="GET";setRequestProperty("User-Agent","Hakamo-IV-Calculator/6.2")}
+    val json=conn.inputStream.bufferedReader(Charsets.UTF_8).use{it.readText()}; conn.disconnect()
+    val arr=org.json.JSONArray(json); val out=ArrayList<MarketDrug>(arr.length())
+    for(i in 0 until arr.length()){
+      val o=arr.getJSONObject(i); val price=if(o.isNull("price_egp"))null else o.optDouble("price_egp",Double.NaN).takeIf{!it.isNaN()}
+      out.add(MarketDrug(o.optString("commercial_name_en"),o.optString("commercial_name_ar"),o.optString("scientific_name"),o.optString("manufacturer"),o.optString("route"),o.optString("drug_class"),price))
+    }
+    marketDrugs=out.sortedBy{it.ar.ifBlank{it.en}.lowercase(java.util.Locale.ROOT)}; marketLoaded=true
+    getPreferences(0).edit().putLong("market_update",System.currentTimeMillis()).apply()
+    runOnUiThread{medicines()}
+   }catch(e:Exception){runOnUiThread{status.text="تعذر التحديث الآن — استخدم زر تحديث لاحقًا. ${e.javaClass.simpleName}"}}
+  }.start()
  }
+
+ private fun marketDrugDetail(d:MarketDrug){page="marketDrug";parentPage="medicines";clear("💊 ${if(d.ar.isBlank())d.en else d.ar}",d.en)
+  fun section(title:String,text:String){val c=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(15),dp(13),dp(15),dp(13));background=glass()};c.addView(tv(title,13f,accent,true));c.addView(tv(text,14f,fg()));body.addView(c,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(10)})}
+  section("السعر المعلن في قاعدة البيانات",if(d.price!=null)"${fmt(d.price!!)} جنيه مصري" else "غير متاح")
+  section("المادة الفعالة / التركيب",if(d.scientific.isBlank())"غير متاح في السجل" else d.scientific)
+  section("الشركة المصنعة",d.manufacturer.ifBlank{"غير متاحة"})
+  section("الشكل / طريق الإعطاء",d.route.ifBlank{"غير متاح"})
+  section("التصنيف",d.category.ifBlank{"غير متاح"})
+  section("تنبيه السعر","السعر قد يتغير مع قرارات التسعير وتحديثات السوق، وقد يختلف عن سعر صيدلية بعينها. تحقق من المصدر الرسمي أو الصيدلي قبل الاعتماد عليه.")
+  body.addView(btn("🌐 فتح قاعدة الأسعار للتحقق الآن"){try{startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://www.dawaagate.com/medicines")))}catch(_:Exception){toast("تعذر فتح الرابط")}},LinearLayout.LayoutParams(-1,dp(54)))
+ }
+
  private fun safety(){
   page="safety"; parentPage="home"
   clear("🛡️ سلامة إعطاء الدواء","قائمة فحص تمريضية قبل إعطاء الدواء")
