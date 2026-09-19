@@ -1,7 +1,5 @@
 package com.hakamo.ivcalculator
 
-import android.app.AlertDialog
-
 import android.content.Intent
 import android.net.Uri
 import android.content.res.Configuration
@@ -413,4 +411,11 @@ override fun onBackPressed(){
    R("الأشعة والفحوصات","ECG","لا يوجد رقم طبيعي واحد؛ يعتمد على معدل القلب والفواصل والمحور والموجات","يحتاج قراءة ECG كاملة وليس رقمًا منفردًا","مرجع قلبي"),
    R("الأشعة والفحوصات","SpO₂/قياس التأكسج","عادةً 95–100% عند الشخص السليم على مستوى سطح البحر","الأهداف تختلف في حالات معينة","مرجع سريري")
   )
+  fun refresh(){list.removeAllViews();val query=q.text.toString().trim().lowercase(java.util.Locale.ROOT);ranges.filter{query.isEmpty()||("${it.cat} ${it.name} ${it.value} ${it.note}").lowercase(java.util.Locale.ROOT).contains(query)}.forEach{r->val c=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(15),dp(13),dp(15),dp(13));background=glass()};c.addView(tv(r.cat,10f,muted(),true));c.addView(tv(r.name,16f,fg(),true));c.addView(tv(r.value,17f,accent,true));c.addView(tv(r.note,11f,muted()));c.addView(tv("المصدر/المرجع: ${r.source}",10f,muted()));list.addView(c,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(9)})};if(list.childCount==0)list.addView(tv("لا توجد نتيجة مطابقة",14f,muted()))}
+  q.addTextChangedListener(object:android.text.TextWatcher{override fun beforeTextChanged(s:CharSequence?,st:Int,c:Int,a:Int){};override fun onTextChanged(s:CharSequence?,b:Int,c:Int,a:Int){refresh()};override fun afterTextChanged(e:android.text.Editable?){} });refresh()
+  val note=tv("⚠ مهم: لا يوجد مرجع عالمي واحد يحدد «الطبيعي» لكل التحاليل. منظمة الصحة العالمية تؤكد أن المختبر مسؤول عن تحديد الفاصل المرجعي المناسب لطريقة القياس والسكان، مع مراعاة العمر والجنس وعوامل أخرى. بعض القيم أعلاه فواصل مختبرية شائعة وليست حدود WHO، وبعضها قيم قرار/تشخيص وليست «مدى طبيعي». استخدم دائمًا مرجع المختبر في تقرير المريض وبروتوكول المنشأة.",11f,muted());note.setPadding(dp(8),dp(14),dp(8),dp(20));body.addView(note)
+ }
+ private fun info(a:String,b:String){page="info";parentPage="reference";clear(a,"مرجع سريع");val c=tv(b,15f);c.setPadding(dp(16),dp(18),dp(16),dp(18));c.background=glass();body.addView(c)}
+ private fun toast(s:String)=Toast.makeText(this,s,Toast.LENGTH_SHORT).show()
+
 }
