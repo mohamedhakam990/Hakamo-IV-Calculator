@@ -1,0 +1,31 @@
+name: Build Windows
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Build Windows
+        shell: powershell
+        run: |
+          .\gradlew.bat packageReleaseMsi
+
+      - name: Upload Windows Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hakamo-Nursing-Assistant-Windows
+          path: |
+            **\build\compose\binaries\main-release\msi\*.msi
+            **\build\compose\binaries\main-release\exe\*.exe
