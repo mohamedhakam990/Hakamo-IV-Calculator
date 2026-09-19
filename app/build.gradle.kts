@@ -11,8 +11,8 @@ android {
         applicationId = "com.hakamo.ivcalculator"
         minSdk = 23
         targetSdk = 35
-        versionCode = 12
-        versionName = "6.2.2"
+        versionCode = 14
+        versionName = "6.2.5"
     }
 
     compileOptions {
