@@ -12,6 +12,8 @@ import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import kotlin.math.*
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 
 class MainActivity: AppCompatActivity(){
  private lateinit var body:LinearLayout; private var mode=0; private var page="home"; private var parentPage="home"
@@ -187,64 +189,30 @@ override fun onBackPressed(){
  private data class MarketDrug(val en:String,val ar:String,val scientific:String,val manufacturer:String,val route:String,val category:String,val price:Double?)
  private var marketDrugs:List<MarketDrug> = emptyList()
  private var marketLoaded=false
+  private var marketLoading=false
+  private val renderExecutor=Executors.newSingleThreadExecutor()
+  private val renderGeneration=AtomicInteger(0)
  private val marketUrl="https://raw.githubusercontent.com/karem505/egyptian-drug-database/main/data/egyptian-drugs.json"
 
  private fun medicines(){page="medicines";parentPage="home";
-  clear("💊 دليل أدوية السوق المصري","قاعدة بيانات موسعة • الاسم التجاري • المادة الفعالة • الشركة • السعر");
-  val status=tv("جاري تجهيز قاعدة الأدوية…",12f,muted()); body.addView(status,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(8)})
-  val search=inp("ابحث باسم الدواء أو المادة الفعالة أو الشركة"); add(search)
-  val actions=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
-  val refreshBtn=btn("↻ تحديث قاعدة الأدوية") { loadMarketDrugs(status,search) }
-  actions.addView(refreshBtn,LinearLayout.LayoutParams(0,dp(52),1f).apply{rightMargin=dp(6)})
-  val liveBtn=btn("🌐 تحقق من الأسعار") { try{startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://www.dawaagate.com/medicines")))}catch(_:Exception){toast("تعذر فتح المصدر")} }
-  actions.addView(liveBtn,LinearLayout.LayoutParams(0,dp(52),1f).apply{leftMargin=dp(6)})
-  body.addView(actions)
-  val list=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}; body.addView(list)
-  fun render(){
-    list.removeAllViews(); val q=search.text.toString().trim().lowercase(java.util.Locale.ROOT)
-    val data=if(marketDrugs.isNotEmpty()) marketDrugs else drugs.map{MarketDrug(it.generic,it.ar,it.generic,"—",it.category,it.category,null)}
-    var shown=0
-    data.forEach{d->
-      val text=(d.en+" "+d.ar+" "+d.scientific+" "+d.manufacturer+" "+d.category).lowercase(java.util.Locale.ROOT)
-      if(q.isEmpty()||text.contains(q)){
-        shown++
-        val c=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(15),dp(13),dp(15),dp(13));background=glass();setOnClickListener{marketDrugDetail(d)}}
-        c.addView(tv(if(d.ar.isBlank()) d.en else d.ar,17f,fg(),true));
-        c.addView(tv(d.en,12f,accent,true));
-        c.addView(tv(if(d.scientific.isBlank())"المادة الفعالة: غير متاحة" else "المادة الفعالة: ${d.scientific}",11f,muted()));
-        val price=if(d.price!=null) "${fmt(d.price!!)} جنيه" else "السعر غير متاح";
-        c.addView(tv("💰 $price   •   ${d.manufacturer.ifBlank{"الشركة غير متاحة"}}",12f,fg(),true));
-        list.addView(c,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(8)})
-        if(shown>=120) return@forEach
-      }
-    }
-    if(shown==0) list.addView(tv("لا توجد نتائج مطابقة.",14f,muted()).apply{setPadding(dp(12),dp(20),dp(12),dp(20))})
-    status.text=if(marketLoaded) "تم تحميل ${marketDrugs.size} صنفًا • البيانات المفتوحة آخر تحديث معلن: يونيو 2026" else "وضع احتياطي: ${drugs.size} دواء تعليمي مدمج"
+   clear("💊 دليل أدوية السوق المصري","قاعدة بيانات موسعة • الاسم التجاري • المادة الفعالة • الشركة • السعر");
+   val status=tv(if(marketLoaded) "تم تحميل قاعدة الأدوية" else "وضع سريع: افتح الدليل فورًا وحدّث قاعدة السوق لاحقًا",12f,muted()); body.addView(status,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(8)})
+   val search=inp("ابحث باسم الدواء أو المادة الفعالة أو الشركة"); add(search)
+   val actions=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
+   val refreshBtn=btn("↻ تحديث قاعدة الأدوية") { loadMarketDrugs(status) }; actions.addView(refreshBtn,LinearLayout.LayoutParams(0,dp(52),1f).apply{rightMargin=dp(6)})
+   val liveBtn=btn("🌐 تحقق من الأسعار") { try{startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://www.dawaagate.com/medicines")))}catch(_:Exception){toast("تعذر فتح المصدر")} }; actions.addView(liveBtn,LinearLayout.LayoutParams(0,dp(52),1f).apply{leftMargin=dp(6)})
+   body.addView(actions); val list=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}; body.addView(list)
+   fun addCard(d:MarketDrug){ val c=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(15),dp(13),dp(15),dp(13));background=glass();setOnClickListener{marketDrugDetail(d)}}; c.addView(tv(if(d.ar.isBlank())d.en else d.ar,17f,fg(),true)); c.addView(tv(d.en,12f,accent,true)); c.addView(tv(if(d.scientific.isBlank())"المادة الفعالة: غير متاحة" else "المادة الفعالة: ${d.scientific}",11f,muted())); val price=if(d.price!=null)"${fmt(d.price!!)} جنيه" else "السعر غير متاح"; c.addView(tv("💰 $price   •   ${d.manufacturer.ifBlank{"الشركة غير متاحة"}}",12f,fg(),true)); list.addView(c,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(8)}) }
+   fun render(matches:List<MarketDrug>){ list.removeAllViews(); matches.take(80).forEach{addCard(it)}; if(matches.isEmpty())list.addView(tv("لا توجد نتائج مطابقة.",14f,muted()).apply{setPadding(dp(12),dp(20),dp(12),dp(20))}); status.text=if(marketLoaded)"تم تحميل ${marketDrugs.size} صنفًا • البحث يعمل بالخلفية" else "الوضع السريع: ${drugs.size} دواء تعليمي مدمج • اضغط تحديث لتحميل قاعدة السوق" }
+   val initial=if(marketDrugs.isNotEmpty())marketDrugs else drugs.map{MarketDrug(it.generic,it.ar,it.generic,"—",it.category,it.category,null)}; render(initial.take(80))
+   search.addTextChangedListener(object:android.text.TextWatcher{override fun beforeTextChanged(s:CharSequence?,st:Int,c:Int,a:Int){};override fun onTextChanged(s:CharSequence?,b:Int,c:Int,a:Int){val q=s?.toString()?.trim()?.lowercase(java.util.Locale.ROOT).orEmpty();val gen=renderGeneration.incrementAndGet();status.text="جاري البحث…";renderExecutor.execute{val data=if(marketDrugs.isNotEmpty())marketDrugs else drugs.map{MarketDrug(it.generic,it.ar,it.generic,"—",it.category,it.category,null)};val matches=data.asSequence().filter{q.isEmpty()||(it.en+" "+it.ar+" "+it.scientific+" "+it.manufacturer+" "+it.category).lowercase(java.util.Locale.ROOT).contains(q)}.take(80).toList();runOnUiThread{if(gen==renderGeneration.get()&&page=="medicines")render(matches)}}};override fun afterTextChanged(e:android.text.Editable?){} })
   }
-  search.addTextChangedListener(object:android.text.TextWatcher{override fun beforeTextChanged(s:CharSequence?,st:Int,c:Int,a:Int){};override fun onTextChanged(s:CharSequence?,b:Int,c:Int,a:Int){render()};override fun afterTextChanged(e:android.text.Editable?){} })
-  render()
-  if(!marketLoaded) loadMarketDrugs(status,search)
- }
 
- private fun loadMarketDrugs(status:TextView,search:EditText){
-  status.text="جاري تحديث قاعدة الأدوية من الإنترنت…"
-  Thread{
-   try{
-    val conn=(java.net.URL(marketUrl).openConnection() as java.net.HttpURLConnection).apply{connectTimeout=15000;readTimeout=30000;requestMethod="GET";setRequestProperty("User-Agent","Hakamo-IV-Calculator/6.2")}
-    val json=conn.inputStream.bufferedReader(Charsets.UTF_8).use{it.readText()}; conn.disconnect()
-    val arr=org.json.JSONArray(json); val out=ArrayList<MarketDrug>(arr.length())
-    for(i in 0 until arr.length()){
-      val o=arr.getJSONObject(i); val price=if(o.isNull("price_egp"))null else o.optDouble("price_egp",Double.NaN).takeIf{!it.isNaN()}
-      out.add(MarketDrug(o.optString("commercial_name_en"),o.optString("commercial_name_ar"),o.optString("scientific_name"),o.optString("manufacturer"),o.optString("route"),o.optString("drug_class"),price))
-    }
-    marketDrugs=out.sortedBy{it.ar.ifBlank{it.en}.lowercase(java.util.Locale.ROOT)}; marketLoaded=true
-    getPreferences(0).edit().putLong("market_update",System.currentTimeMillis()).apply()
-    runOnUiThread{medicines()}
-   }catch(e:Exception){runOnUiThread{status.text="تعذر التحديث الآن — استخدم زر تحديث لاحقًا. ${e.javaClass.simpleName}"}}
-  }.start()
- }
+  private fun loadMarketDrugs(status:TextView){if(marketLoading){toast("جاري تحديث قاعدة الأدوية بالفعل…");return};marketLoading=true;status.text="جاري تحديث قاعدة الأدوية في الخلفية…";Thread{try{val conn=(java.net.URL(marketUrl).openConnection() as java.net.HttpURLConnection).apply{connectTimeout=10000;readTimeout=20000;requestMethod="GET";setRequestProperty("User-Agent","Hakamo-IV-Calculator/6.2.2")};val json=conn.inputStream.bufferedReader(Charsets.UTF_8).use{it.readText()};conn.disconnect();val arr=org.json.JSONArray(json);val out=ArrayList<MarketDrug>(arr.length());for(i in 0 until arr.length()){val o=arr.getJSONObject(i);val price=if(o.isNull("price_egp"))null else o.optDouble("price_egp",Double.NaN).takeIf{!it.isNaN()};out.add(MarketDrug(o.optString("commercial_name_en"),o.optString("commercial_name_ar"),o.optString("scientific_name"),o.optString("manufacturer"),o.optString("route"),o.optString("drug_class"),price))};marketDrugs=out.sortedBy{it.ar.ifBlank{it.en}.lowercase(java.util.Locale.ROOT)};marketLoaded=true;getPreferences(0).edit().putLong("market_update",System.currentTimeMillis()).apply();runOnUiThread{marketLoading=false;medicines()}}catch(e:Exception){runOnUiThread{marketLoading=false;status.text="تعذر التحديث الآن — التطبيق يعمل بالوضع السريع. ${e.javaClass.simpleName}"}}}}.start()}
 
- private fun marketDrugDetail(d:MarketDrug){page="marketDrug";parentPage="medicines";clear("💊 ${if(d.ar.isBlank())d.en else d.ar}",d.en)
+  override fun onDestroy(){renderExecutor.shutdownNow();super.onDestroy()}
+
+  private fun marketDrugDetail(d:MarketDrug){page="marketDrug";parentPage="medicines";clear("💊 ${if(d.ar.isBlank())d.en else d.ar}",d.en)
   fun section(title:String,text:String){val c=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(15),dp(13),dp(15),dp(13));background=glass()};c.addView(tv(title,13f,accent,true));c.addView(tv(text,14f,fg()));body.addView(c,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(10)})}
   section("السعر المعلن في قاعدة البيانات",if(d.price!=null)"${fmt(d.price!!)} جنيه مصري" else "غير متاح")
   section("المادة الفعالة / التركيب",if(d.scientific.isBlank())"غير متاح في السجل" else d.scientific)
